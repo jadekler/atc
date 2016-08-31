@@ -172,6 +172,23 @@ var _ = Describe("Keeping track of volumes", func() {
 					}
 				}
 			})
+
+			FIt("does not return expired volumes", func() {
+				err := database.InsertVolume(volumeToInsert)
+				Expect(err).NotTo(HaveOccurred())
+
+				volumes, err := database.GetVolumesByIdentifier(identifier)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(volumes).To(HaveLen(1))
+				Expect(volumes[0].Handle).To(Equal("some-volume-handle"))
+
+				err = database.SetVolumeTTL("some-volume-handle", -time.Minute)
+				Expect(err).NotTo(HaveOccurred())
+
+				volumes, err = database.GetVolumesByIdentifier(identifier)
+				Expect(err).NotTo(HaveOccurred())
+				Expect(volumes).To(BeEmpty())
+			})
 		})
 
 		Describe("SetVolumeSizeInBytes", func() {

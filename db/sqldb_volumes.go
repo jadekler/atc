@@ -113,11 +113,6 @@ func (db *SQLDB) ReapVolume(handle string) error {
 }
 
 func (db *SQLDB) GetVolumes() ([]SavedVolume, error) {
-	err := db.expireVolumes()
-	if err != nil {
-		return nil, err
-	}
-
 	rows, err := db.conn.Query(`
 		SELECT
 			v.worker_name,
@@ -136,7 +131,9 @@ func (db *SQLDB) GetVolumes() ([]SavedVolume, error) {
 			c.ttl,
 			v.team_id
 		FROM volumes v
-		` + volumeJoins)
+		` + volumeJoins + `
+		WHERE (v.expires_at IS NULL OR v.expires_at > NOW())
+		`)
 	if err != nil {
 		return nil, err
 	}
@@ -146,12 +143,7 @@ func (db *SQLDB) GetVolumes() ([]SavedVolume, error) {
 }
 
 func (db *SQLDB) GetVolumesByIdentifier(id VolumeIdentifier) ([]SavedVolume, error) {
-	err := db.expireVolumes()
-	if err != nil {
-		return nil, err
-	}
-
-	conditions := []string{}
+	conditions := []string{"(v.expires_at IS NULL OR v.expires_at > NOW())"}
 	params := []interface{}{}
 
 	addParam := func(column string, param interface{}) {
@@ -219,10 +211,10 @@ func (db *SQLDB) GetVolumesByIdentifier(id VolumeIdentifier) ([]SavedVolume, err
 }
 
 func (db *SQLDB) GetVolumesForOneOffBuildImageResources() ([]SavedVolume, error) {
-	err := db.expireVolumes()
-	if err != nil {
-		return nil, err
-	}
+	// err := db.expireVolumes()
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	rows, err := db.conn.Query(`
 		SELECT DISTINCT
@@ -307,7 +299,7 @@ func (db *SQLDB) SetVolumeSizeInBytes(handle string, sizeInBytes int64) error {
 	return err
 }
 
-func (db *SQLDB) expireVolumes() error {
+func (db *SQLDB) ReapExpiredVolumes() error {
 	_, err := db.conn.Exec(`
 		DELETE FROM volumes
 		WHERE expires_at IS NOT NULL
